@@ -146,10 +146,10 @@ destinationPath builds a full path where the origPath should be copied to based
 on its DateTimeOriginal tag.
 */
 func destinationPath(origPath, newBasePath string, t time.Time) string {
-    dir   := strings.Join([]string{newBasePath, string(t.Year()), string(t.Month())}, "/")
-    fname := strings.Join([]string{t.Format("2006-01-02 15:04:05"), path.Ext(origPath)}, ".")
+    dir   := filepath.Join(newBasePath, string(t.Year()), string(t.Month()))
+    fname := filepath.Join(t.Format("2006-01-02 15:04:05"), path.Ext(origPath))
 
-    return strings.Join([]string{dir, fname}, "/")
+    return filepath.Join(dir, fname)
 }
 
 /*
