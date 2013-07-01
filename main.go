@@ -21,7 +21,7 @@ import (
 var threads int = 8
 var items chan string
 var quit chan bool
-var dupes map[string][]string = make(map[string][]string, 100)
+var db map[string][]string = make(map[string][]string, 100)
 var basePhotoPath string = "/home/quincy/Pictures"  // TODO change this to use the home directory of current user or use a configuration file setting.
 var log *Logger
 
@@ -83,17 +83,17 @@ func processFiles(items chan string, quit chan bool, num int) {
 
             // ensure the new path doesn't already exist
             if Exists(newPath) {
-                // TODO Come up with a new file name.
+                // TODO Log the error, copy the file to a error dir, and send an e-mail.
             }
 
             // copy the file
             // TODO
 
             // add an entry to the hashmap db
-            if _, exists := dupes[hash]; !exists {
-                dupes[hash] = make([]string, 0, 5)
+            if _, exists := db[hash]; !exists {
+                db[hash] = make([]string, 0, 5)
             }
-            dupes[hash] = append(dupes[hash], newPath)
+            db[hash] = append(db[hash], newPath)
         case <-quit:
             return
         }
@@ -164,7 +164,7 @@ func Exists(name string) bool {
 /*
 read_md5_db deserializes the md5 json database from the given filePath.
 */
-func read_md5_db(filePath string) *map[string][]string {
+func read_md5_db(filePath string) map[string][]string {
     var db map[string][]string = make(map[string][]string, 100)
 
     if Exists(filePath) {
@@ -177,7 +177,7 @@ func read_md5_db(filePath string) *map[string][]string {
         err = json.Unmarshal(json_bytes, &db)
     }
 
-    return &db
+    return db
 }
 
 
@@ -185,7 +185,7 @@ func read_md5_db(filePath string) *map[string][]string {
 write_md5_db serializes the md5 database to json and writes it to the given
 file path..
 */
-func write_md5_db(db *map[string][]string, filePath string) {
+func write_md5_db(db map[string][]string, filePath string) {
     b, err := json.Marshal(db)
 
     err = ioutil.WriteFile(filePath, b, 0644)
@@ -194,21 +194,20 @@ func write_md5_db(db *map[string][]string, filePath string) {
 
 
 func main() {
-    spool_path  := "/home/quincy/Desktop/spool"  // TODO these should be configurable values.
-    md5_db_path := "/home/quincy/.media_spool"
-
-    db := read_md5_db(md5_db_path)
-
+    // Start the processFiles function in threads goroutines, this will process
+    // each file that needs to be spooled when we perform the file walk.
     items = make(chan string, 100)
     quit  = make(chan bool, threads)
     for i := 0; i<threads; i++ {
         go processFiles(items, quit, i)
     }
 
-    fmt.Println("DEBUG :: Starting walk...")
+    // Start the file walk.
+    log.Println("Starting walk...")
     err := filepath.Walk(spool_path, visit)
-    fmt.Println("DEBUG :: Walk complete...")
+    log.Println("Walk complete...")
 
+    // Send the quit signal to each thread now that the file walk is complete.
     for i := 0; i<threads; i++ {
         quit<-true
     }
@@ -217,17 +216,7 @@ func main() {
         fmt.Println("There was an error: ", err)
     }
 
-    count := 0
-    for sum, paths := range(dupes) {
-        if len(paths) > 1 {
-            fmt.Printf("%s\n", sum)
-            for p := range(paths) {
-                fmt.Printf("\t%s\n", paths[p])
-                count++
-            }
-        }
-    }
-
-    os.Exit(count)
+    // Write out the database.
+    write_md5_db(db, md5_db_path)
 }
 
