@@ -18,7 +18,7 @@ import (
 )
 
 
-var threads int = 100
+var threads int = 8
 var items chan string
 var quit chan bool
 var dupes map[string][]string = make(map[string][]string, 100)
