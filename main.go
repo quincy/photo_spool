@@ -9,9 +9,9 @@ import (
     "io/ioutil"
     "log"
     "os"
+    "os/user"
     "path"
     "path/filepath"
-    "strings"
     "time"
 
     "github.com/rwcarlsen/goexif/exif"
@@ -22,11 +22,28 @@ var threads int = 8
 var items chan string
 var quit chan bool
 var db map[string][]string = make(map[string][]string, 100)
-var basePhotoPath string = "/home/quincy/Pictures"  // TODO change this to use the home directory of current user or use a configuration file setting.
-var log *Logger
+var basePhotoPath string
+var spool_path string
+var md5_db_path string
+var currentUser *user.User
 
+
+/*
+init sets up required initial state.
+*/
 func init() {
-    log = Log.New(io.Writer, prefix, flag)  // TODO This needs to be finished.
+    var err error
+    if currentUser, err = user.LookupId(string(os.Getuid())); err != nil {
+        log.Fatal(err)
+    }
+
+    // Setup paths.
+    basePhotoPath = filepath.Join(currentUser.HomeDir, "Pictures")       // TODO these should be configurable values.
+    spool_path    = filepath.Join(currentUser.HomeDir, "Desktop/spool")  // TODO these should be configurable values.
+    md5_db_path   = filepath.Join(currentUser.HomeDir, ".media_spool")   // TODO these should be configurable values.
+
+    // Read in the database of md5 sums for all previously spooled pictures.
+    db = read_md5_db(md5_db_path)
 }
 
 
