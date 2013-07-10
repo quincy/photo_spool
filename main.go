@@ -23,8 +23,9 @@ var items chan string
 var quit chan bool
 var db map[string][]string = make(map[string][]string, 100)
 var basePhotoPath string
-var spool_path string
-var md5_db_path string
+var errorPath string
+var spoolPath string
+var md5DbPath string
 var currentUser *user.User
 
 
@@ -38,12 +39,13 @@ func init() {
     }
 
     // Setup paths.
-    basePhotoPath = filepath.Join(currentUser.HomeDir, "Pictures")       // TODO these should be configurable values.
-    spool_path    = filepath.Join(currentUser.HomeDir, "Desktop/spool")  // TODO these should be configurable values.
-    md5_db_path   = filepath.Join(currentUser.HomeDir, ".media_spool")   // TODO these should be configurable values.
+    basePhotoPath = filepath.Join(currentUser.HomeDir, "Pictures")              // TODO these should be configurable values.
+    errorPath     = filepath.Join(currentUser.HomeDir, "Desktop/spool_error")   // TODO these should be configurable values.
+    spoolPath     = filepath.Join(currentUser.HomeDir, "Desktop/spool")         // TODO these should be configurable values.
+    md5DbPath     = filepath.Join(currentUser.HomeDir, ".media_spool")          // TODO these should be configurable values.
 
     // Read in the database of md5 sums for all previously spooled pictures.
-    db = read_md5_db(md5_db_path)
+    db = readMd5Db(md5DbPath)
 }
 
 
@@ -182,9 +184,9 @@ func Exists(name string) bool {
 
 
 /*
-read_md5_db deserializes the md5 json database from the given filePath.
+readMd5Db deserializes the md5 json database from the given filePath.
 */
-func read_md5_db(filePath string) map[string][]string {
+func readMd5Db(filePath string) map[string][]string {
     var db map[string][]string = make(map[string][]string, 100)
 
     if Exists(filePath) {
@@ -202,10 +204,10 @@ func read_md5_db(filePath string) map[string][]string {
 
 
 /*
-write_md5_db serializes the md5 database to json and writes it to the given
+writeMd5Db serializes the md5 database to json and writes it to the given
 file path..
 */
-func write_md5_db(db map[string][]string, filePath string) {
+func writeMd5Db(db map[string][]string, filePath string) {
     b, err := json.Marshal(db)
 
     err = ioutil.WriteFile(filePath, b, 0644)
@@ -224,7 +226,7 @@ func main() {
 
     // Start the file walk.
     log.Println("Starting walk...")
-    err := filepath.Walk(spool_path, visit)
+    err := filepath.Walk(spoolPath, visit)
     log.Println("Walk complete...")
 
     // Send the quit signal to each thread now that the file walk is complete.
@@ -237,6 +239,6 @@ func main() {
     }
 
     // Write out the database.
-    write_md5_db(db, md5_db_path)
+    writeMd5Db(db, md5DbPath)
 }
 
