@@ -12,13 +12,15 @@ import (
     "os/user"
     "path"
     "path/filepath"
+    "regexp"
+    "strconv"
     "time"
 
     "github.com/rwcarlsen/goexif/exif"
 )
 
 
-var threads int = 8
+var threads int = 1
 var items chan string
 var quit chan bool
 var db map[string][]string = make(map[string][]string, 100)
@@ -116,11 +118,15 @@ func processFiles(items chan string, quit chan bool, num int) {
 
             // ensure the new path doesn't already exist
             if Exists(newPath) {
-                // TODO Log the error, copy the file to a error dir, and send an e-mail.
+                moveFileToErrorPath(spoolFile)
+                log.Fatal("A file with that name already exists at the destination.")  // TODO This logging sucks.
+                // TODO send an e-mail.
             }
 
-            // copy the file
-            // TODO
+            // move the file to its new home
+            if err := mv(newPath, spoolFile); err != nil {
+                log.Fatal(err)
+            }
 
             // add an entry to the hashmap db
             if _, exists := db[hash]; !exists {
@@ -137,19 +143,19 @@ func processFiles(items chan string, quit chan bool, num int) {
 /*
 getDateTime reads the exif data from fname and returns a string representation
 of the DateTimeOriginal tag.
-
-TODO handle errors better.
 */
 func getDateTime(fname string) time.Time {
     log.Println("Entering getDateTime(", fname, ")")
     f, err := os.Open(fname)
     if err != nil {
+        mv(fname, filepath.Join(errorPath, fname))
         log.Fatal(err)
     }
 
     log.Println("Decoding exif data for ", fname)
     x, err := exif.Decode(f)
     if err != nil {
+        mv(fname, filepath.Join(errorPath, fname))
         log.Fatal(err)
     }
 
@@ -157,6 +163,7 @@ func getDateTime(fname string) time.Time {
     log.Println("Setting DateTimeOriginal to ", date.StringVal(), " on ", fname)
     t, err  := time.Parse("2006:01:02 15:04:05", date.StringVal())
     if err != nil {
+        mv(fname, filepath.Join(errorPath, fname))
         log.Fatal(err)
     }
 
@@ -164,6 +171,51 @@ func getDateTime(fname string) time.Time {
     return t
 }
 
+/*
+moveFileToErrorPath moves the file at fname to the errorPath directory.
+*/
+func moveFileToErrorPath(fname string) error {
+    log.Println("Entering moveFileToErrorPath(", fname, ")")
+    dst := filepath.Join(errorPath, fname)
+    if err:= mv(dst, fname); err != nil {
+        return err
+    }
+
+    return nil
+}
+
+/*
+mv copies the file at src to the new file at dst.
+Credit: https://gist.github.com/elazarl/5507969
+*/
+func mv(dst, src string) error {
+    log.Printf("Entering mv(%s, %s)", dst, src)
+    s, err := os.Open(src)
+    if err != nil {
+        return err
+    }
+    // no need to check errors on read only file, we already got everything
+    // we need from the filesystem, so nothing can go wrong now.
+    defer s.Close()
+    d, err := os.Create(dst)
+    if err != nil {
+        return err
+    }
+    if _, err := io.Copy(d, s); err != nil {
+        d.Close()
+        return err
+    }
+    if err := d.Close(); err != nil {
+        return err
+    }
+
+    if err:= os.Remove(src); err != nil {
+        return err
+    }
+
+    log.Println("Returning from mv()")
+    return nil
+}
 
 /*
 destinationPath builds a full path where the origPath should be copied to based
