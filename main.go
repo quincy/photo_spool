@@ -37,7 +37,7 @@ init sets up required initial state.
 func init() {
     log.Println("Entering init()")
     var err error
-    if currentUser, err = user.LookupId(string(os.Getuid())); err != nil {
+    if currentUser, err = user.LookupId(strconv.Itoa(os.Getuid())); err != nil {
         log.Fatal(err)
     }
 
