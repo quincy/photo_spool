@@ -186,7 +186,15 @@ to be processed by the processFiles goroutine.
 func visit(filePath string, f os.FileInfo, err error) error {
     log.Println("Entering visit()")
     if !f.IsDir() {
-        items <- filePath
+        matched, err := regexp.MatchString("(?i:jpg$)", filePath)
+        if err != nil {
+            moveFileToErrorPath(filePath)
+        }
+        if matched {
+            items <- filePath
+        } else {
+            log.Println("Skipping non-JPEG file ", filePath)
+        }
     }
 
     log.Println("Returning from visit.")
