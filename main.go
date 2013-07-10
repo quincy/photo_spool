@@ -49,6 +49,9 @@ func init() {
     spoolPath     = filepath.Join(currentUser.HomeDir, "Desktop/spool")         // TODO these should be configurable values.
     md5DbPath     = filepath.Join(currentUser.HomeDir, ".media_spool")          // TODO these should be configurable values.
 
+    if err := os.MkdirAll(errorPath, 0775); err != nil {
+        log.Fatal(err)
+    }
 
     log.Println("basePhotoPath = ", basePhotoPath)
     log.Println("errorPath     = ", errorPath)
