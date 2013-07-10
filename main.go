@@ -33,10 +33,13 @@ var currentUser *user.User
 init sets up required initial state.
 */
 func init() {
+    log.Println("Entering init()")
     var err error
     if currentUser, err = user.LookupId(string(os.Getuid())); err != nil {
         log.Fatal(err)
     }
+
+    log.Println("currentUser = ", currentUser)
 
     // Setup paths.
     basePhotoPath = filepath.Join(currentUser.HomeDir, "Pictures")              // TODO these should be configurable values.
@@ -44,8 +47,16 @@ func init() {
     spoolPath     = filepath.Join(currentUser.HomeDir, "Desktop/spool")         // TODO these should be configurable values.
     md5DbPath     = filepath.Join(currentUser.HomeDir, ".media_spool")          // TODO these should be configurable values.
 
+
+    log.Println("basePhotoPath = ", basePhotoPath)
+    log.Println("errorPath     = ", errorPath)
+    log.Println("spoolPath     = ", spoolPath)
+    log.Println("md5DbPath     = ", md5DbPath)
+
     // Read in the database of md5 sums for all previously spooled pictures.
     db = readMd5Db(md5DbPath)
+
+    log.Println("Returning from init()")
 }
 
 
@@ -54,6 +65,7 @@ getHash calculates the md5 sum for a given filePath and returns the hex string
 representation.
 */
 func getHash(filePath string) string {
+    log.Println("Entering getHash(", filePath, ")")
     h := md5.New()
 
     inputFile, inputError := os.Open(filePath)
@@ -71,6 +83,7 @@ func getHash(filePath string) string {
 
     sum := fmt.Sprintf("%x", h.Sum(nil))
 
+    log.Println("Returning ", sum, " from getHash(", filePath, ")")
     return sum
 }
 
@@ -85,12 +98,13 @@ YYYY-MM-DD HH:mm:ss format.
 The function returns when it gets input on the quit channel.
 */
 func processFiles(items chan string, quit chan bool, num int) {
+    log.Println("Entering processFiles()")
     var spoolFile string
 
     for {
         select {
         case spoolFile = <-items:
-            fmt.Println("DEBUG ::", num, "::", spoolFile)
+            log.Println(num, "::", spoolFile)
             // calculate an md5 sum for the file
             hash := getHash(spoolFile)
 
@@ -114,6 +128,7 @@ func processFiles(items chan string, quit chan bool, num int) {
             }
             db[hash] = append(db[hash], newPath)
         case <-quit:
+            log.Println("Returning from processFiles.")
             return
         }
     }
@@ -126,22 +141,26 @@ of the DateTimeOriginal tag.
 TODO handle errors better.
 */
 func getDateTime(fname string) time.Time {
+    log.Println("Entering getDateTime(", fname, ")")
     f, err := os.Open(fname)
     if err != nil {
         log.Fatal(err)
     }
 
+    log.Println("Decoding exif data for ", fname)
     x, err := exif.Decode(f)
     if err != nil {
         log.Fatal(err)
     }
 
     date, _ := x.Get(exif.DateTimeOriginal)
+    log.Println("Setting DateTimeOriginal to ", date.StringVal(), " on ", fname)
     t, err  := time.Parse("2006:01:02 15:04:05", date.StringVal())
     if err != nil {
         log.Fatal(err)
     }
 
+    log.Printf("Returning %v from getDateTime()", t)
     return t
 }
 
@@ -151,9 +170,11 @@ destinationPath builds a full path where the origPath should be copied to based
 on its DateTimeOriginal tag.
 */
 func destinationPath(origPath, newBasePath string, t time.Time) string {
+    log.Printf("Entering destinationPath(%v, %v, %v)", origPath, newBasePath, t)
     dir   := filepath.Join(newBasePath, string(t.Year()), string(t.Month()))
     fname := filepath.Join(t.Format("2006-01-02 15:04:05"), path.Ext(origPath))
 
+    log.Printf("Returning %v from destinationPath()", filepath.Join(dir, fname))
     return filepath.Join(dir, fname)
 }
 
@@ -163,10 +184,12 @@ directory then it is ignored.  Otherwise the path is sent to the items channel
 to be processed by the processFiles goroutine.
 */
 func visit(filePath string, f os.FileInfo, err error) error {
+    log.Println("Entering visit()")
     if !f.IsDir() {
         items <- filePath
     }
 
+    log.Println("Returning from visit.")
     return nil
 }
 
@@ -187,6 +210,7 @@ func Exists(name string) bool {
 readMd5Db deserializes the md5 json database from the given filePath.
 */
 func readMd5Db(filePath string) map[string][]string {
+    log.Println("Entering readMd5Db(", filePath, ")")
     var db map[string][]string = make(map[string][]string, 100)
 
     if Exists(filePath) {
@@ -199,6 +223,7 @@ func readMd5Db(filePath string) map[string][]string {
         err = json.Unmarshal(json_bytes, &db)
     }
 
+    log.Printf("Returning from readMd5Db")
     return db
 }
 
@@ -208,14 +233,20 @@ writeMd5Db serializes the md5 database to json and writes it to the given
 file path..
 */
 func writeMd5Db(db map[string][]string, filePath string) {
+    log.Println("Entering writeMd5Db()")
     b, err := json.Marshal(db)
 
     err = ioutil.WriteFile(filePath, b, 0644)
-    if err != nil { panic(err) }
+    if err != nil {
+        panic(err)
+    }
+
+    log.Println("Returning from writeMd5Db()")
 }
 
 
 func main() {
+    log.Println("Entering main()")
     // Start the processFiles function in threads goroutines, this will process
     // each file that needs to be spooled when we perform the file walk.
     items = make(chan string, 100)
@@ -240,5 +271,6 @@ func main() {
 
     // Write out the database.
     writeMd5Db(db, md5DbPath)
+    log.Println("Returning from main()")
 }
 
