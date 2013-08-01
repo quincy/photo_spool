@@ -55,7 +55,7 @@ func Mv(dst, src string) error {
 MoveTo moves the file at fname to the directory dir.
 */
 func MoveTo(dir, fname string) error {
-    dst := filepath.Join(dir, fname)
+    dst := filepath.Join(dir, filepath.Base(fname))
     return Mv(dst, fname)
 }
 
