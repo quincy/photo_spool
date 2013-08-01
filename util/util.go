@@ -30,6 +30,8 @@ func Mv(dst, src string) error {
     // no need to check errors on read only file, we already got everything
     // we need from the filesystem, so nothing can go wrong now.
     defer s.Close()
+
+    os.MkdirAll(filepath.Dir(dst), 0755)
     d, err := os.Create(dst)
     if err != nil {
         return err
