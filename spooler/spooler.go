@@ -12,6 +12,7 @@ import (
     "os"
     "path"
     "path/filepath"
+    "strconv"
     "time"
 
     "github.com/rwcarlsen/goexif/exif"
@@ -192,8 +193,15 @@ getDestination builds a full path where the origPath should be copied to based
 on its DateTimeOriginal tag.
 */
 func (sp *Spool) getDestination(origPath, newBasePath string, t time.Time) string {
-    dir   := filepath.Join(newBasePath, string(t.Year()), string(t.Month()))
-    fname := filepath.Join(t.Format("2006-01-02 15:04:05"), path.Ext(origPath))
+    m   := int(t.Month())
+    mon := strconv.Itoa(m)
+
+    if m < 10 {
+        mon = "0" + mon
+    }
+
+    dir   := filepath.Join(newBasePath, strconv.Itoa(t.Year()), mon)
+    fname := t.Format("2006-01-02_15:04:05") + path.Ext(origPath)
 
     return filepath.Join(dir, fname)
 }
