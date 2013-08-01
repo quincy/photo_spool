@@ -111,6 +111,7 @@ func (sp *Spool) Spool(file string) error {
     }
 
     // move the file to its new home
+    log.Printf("Mv(%s, %s)\n", newPath, file)
     if err := util.Mv(newPath, file); err != nil {
         log.Println(err)
         return err

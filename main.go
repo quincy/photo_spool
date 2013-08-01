@@ -77,6 +77,7 @@ directory then it is ignored.  Otherwise the path is sent to the items channel
 to be processed by the processFiles goroutine.
 */
 func visit(filePath string, f os.FileInfo, err error) error {
+    log.Println("Visiting", filePath)
     if !f.IsDir() {
         matched, err := regexp.MatchString("(?i:jpg$)", filePath)
         if err != nil {
