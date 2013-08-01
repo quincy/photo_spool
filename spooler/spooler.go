@@ -94,8 +94,11 @@ func (sp *Spool) Spool(file string) error {
     // get the Time from the DateTimeOriginal exif tag
     dateTime, err := getDateTime(file)
     if err != nil {
-        util.MoveTo(sp.ErrorPath, file)
         log.Printf("Could not read the DateTimeOriginal tag. %v", err)
+        log.Printf("Moving %s to %s.\n", file, sp.ErrorPath)
+        if mverr := util.MoveTo(sp.ErrorPath, file); mverr != nil {
+            log.Fatal(mverr)
+        }
         return err
     }
 
@@ -179,7 +182,11 @@ func getDateTime(fname string) (time.Time, error) {
         return time.Now(), err
     }
 
-    date, _ := x.Get(exif.DateTimeOriginal)
+    date, err := x.Get(exif.DateTimeOriginal)
+    if err != nil {
+        var t time.Time
+        return t, err
+    }
     log.Println("Setting DateTimeOriginal to ", date.StringVal(), " on ", fname)
     t, err  := time.Parse("2006:01:02 15:04:05", date.StringVal())
     if err != nil {
