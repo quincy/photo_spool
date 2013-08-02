@@ -106,6 +106,7 @@ func (sp *Spool) Spool(file string) error {
     newPath := sp.getDestination(file, sp.Destination, dateTime)
 
     // ensure the new path doesn't already exist
+    log.Printf("Mv(%s, %s)\n", newPath, file)
     if util.Exists(newPath) {
         util.MoveTo(sp.ErrorPath, file)
         log.Println("A file with that name already exists at the destination.")  // TODO This logging sucks.
@@ -114,7 +115,6 @@ func (sp *Spool) Spool(file string) error {
     }
 
     // move the file to its new home
-    log.Printf("Mv(%s, %s)\n", newPath, file)
     if err := util.Mv(newPath, file); err != nil {
         log.Println(err)
         return err
