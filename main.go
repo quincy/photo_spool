@@ -39,6 +39,14 @@ func init() {
         log.Fatal(err)
     }
 
+    if err := os.MkdirAll(basePhotoPath, 0775); err != nil {
+        log.Fatal(err)
+    }
+
+    if err := os.MkdirAll(spoolPath, 0775); err != nil {
+        log.Fatal(err)
+    }
+
     if spool, err = spooler.New(md5DbPath, basePhotoPath, errorPath); err != nil {
         log.Fatalf("Could not create a new Spool. %v\n", err)
     }
