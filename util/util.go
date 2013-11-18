@@ -59,4 +59,23 @@ func MoveTo(dir, fname string) error {
     return Mv(dst, fname)
 }
 
+func DirIsEmpty(dir string) bool {
+    var err error
+    var f *os.File
+
+    if f, err = os.Open(dir); err == nil {
+        var names []string
+        if names, err = f.Readdirnames(0); err != nil {
+            panic(err)
+        }
+
+        if len(names) > 0 {
+            return false
+        }
+
+        return true
+    }
+
+    panic(err)
+}
 

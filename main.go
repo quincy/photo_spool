@@ -60,6 +60,7 @@ to be processed by the processFiles goroutine.
 */
 func visit(filePath string, f os.FileInfo, err error) error {
     log.Println("Visiting", filePath)
+
     if !f.IsDir() {
         matched, err := regexp.MatchString("(?i:jpe?g$)", filePath)
         if err != nil {
@@ -67,6 +68,11 @@ func visit(filePath string, f os.FileInfo, err error) error {
         }
         if matched {
             spool.Spool(filePath)
+
+            parent := filepath.Dir(filePath)
+            if util.DirIsEmpty(parent) {
+                // TODO Prune the parent
+            }
         } else {
             log.Println("Skipping non-JPEG file ", filePath)
             util.MoveTo(spool.ErrorPath, filePath)
