@@ -12,6 +12,7 @@ import (
     "os"
     "path"
     "path/filepath"
+    "strings"
     "strconv"
     "time"
 
@@ -208,9 +209,13 @@ func (sp *Spool) getDestination(origPath, newBasePath string, t time.Time) strin
         mon = "0" + mon
     }
 
-    dir   := filepath.Join(newBasePath, strconv.Itoa(t.Year()), mon)
-    fname := t.Format("2006-01-02_15:04:05") + path.Ext(origPath)
+    suffix := strings.ToLower(path.Ext(origPath))
+    if suffix == "jpeg" {
+        suffix = "jpg"
+    }
 
+    dir   := filepath.Join(newBasePath, strconv.Itoa(t.Year()), mon)
+    fname := t.Format("2006-01-02_15:04:05") + suffix
     return filepath.Join(dir, fname)
 }
 

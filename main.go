@@ -61,7 +61,7 @@ to be processed by the processFiles goroutine.
 func visit(filePath string, f os.FileInfo, err error) error {
     log.Println("Visiting", filePath)
     if !f.IsDir() {
-        matched, err := regexp.MatchString("(?i:jpg$)", filePath)
+        matched, err := regexp.MatchString("(?i:jpe?g$)", filePath)
         if err != nil {
             util.MoveTo(spool.ErrorPath, filePath)
         }
