@@ -109,10 +109,13 @@ func (sp *Spool) Spool(file string) error {
     // ensure the new path doesn't already exist
     log.Printf("Mv(%s, %s)\n", newPath, file)
     if util.Exists(newPath) {
-        util.MoveTo(sp.ErrorPath, file)
-        log.Println("A file with that name already exists at the destination.")  // TODO This logging sucks.
+        fields := strings.Split(file, ".")
+        errorName := filepath.Join(sp.ErrorPath, strings.Join([]string{fields[0], filepath.Base(newPath)}, "::"))
+        util.Mv(errorName, file)
+        msg := "A file with that name already exists at the destination.  Moving to " + errorName
+        log.Println(msg)  // TODO This logging sucks.
         // TODO send an e-mail.
-        return errors.New("A file with that name already exists at the destination.")
+        return errors.New(msg)
     }
 
     // move the file to its new home
