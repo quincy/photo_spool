@@ -105,9 +105,11 @@ func (sp *Spool) Spool(file string) error {
 
     // check if the hash already exists in the db
     if _, exists := sp.db[hash]; exists {
-        log.Printf("MoveTo(%s, %s)\n", sp.ErrorPath, file)
-        util.MoveTo(sp.ErrorPath, file)
-        return errors.New("A db entry already exists for " + file + ".")
+        msg := "A db entry already exists for " + file + "."
+        errorName := filepath.Join(sp.ErrorPath, strings.Join([]string{filepath.Base(file), "DUPLICATE"}, "."))
+        log.Printf("Mv(%s, %s)\n", errorName, file)
+        util.Mv(errorName, file)
+        return errors.New(msg)
     }
 
     // calculate the path to copy the file to, including a new file name
