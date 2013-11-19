@@ -114,6 +114,11 @@ func (sp *Spool) Spool(file string) error {
     newPath := sp.getDestination(file, sp.Destination, dateTime)
 
     // ensure the new path doesn't already exist
+    for util.Exists(newPath) {
+        dateTime = dateTime.Add(1*time.Second)
+        newPath = sp.getDestination(file, sp.Destination, dateTime)
+    }
+
     log.Printf("Mv(%s, %s)\n", newPath, file)
     if util.Exists(newPath) {
         fields := strings.Split(filepath.Base(file), ".")
