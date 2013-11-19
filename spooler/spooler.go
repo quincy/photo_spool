@@ -126,7 +126,7 @@ func (sp *Spool) Spool(file string) error {
         fields := strings.Split(filepath.Base(file), ".")
         errorName := filepath.Join(sp.ErrorPath, strings.Join([]string{fields[0], filepath.Base(newPath)}, "::"))
         util.Mv(errorName, file)
-        msg := "A file with that name already exists at the destination.  Moving to " + errorName
+        msg := "A file with that named " + newPath + " already exists at the destination.  Moving to " + errorName
         log.Println(msg)  // TODO This logging sucks.
         // TODO send an e-mail.
         return errors.New(msg)
