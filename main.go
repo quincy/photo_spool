@@ -67,7 +67,10 @@ func visit(filePath string, f os.FileInfo, err error) error {
             util.MoveTo(spool.ErrorPath, filePath)
         }
         if matched {
-            spool.Spool(filePath)
+            spoolError := spool.Spool(filePath)
+            if spoolError != nil {
+                log.Println(spoolError)
+            }
 
             parent := filepath.Dir(filePath)
             if util.DirIsEmpty(parent) {
