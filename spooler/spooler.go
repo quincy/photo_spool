@@ -103,6 +103,13 @@ func (sp *Spool) Spool(file string) error {
         return err
     }
 
+    // check if the hash already exists in the db
+    if _, exists := sp.db[hash]; exists {
+        log.Printf("MoveTo(%s, %s)\n", sp.ErrorPath, file)
+        util.MoveTo(sp.ErrorPath, file)
+        return errors.New("A db entry already exists for " + file + ".")
+    }
+
     // calculate the path to copy the file to, including a new file name
     newPath := sp.getDestination(file, sp.Destination, dateTime)
 
