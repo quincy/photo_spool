@@ -12,24 +12,26 @@ import (
     "os"
     "path"
     "path/filepath"
-    "strings"
     "strconv"
+    "strings"
     "time"
 
-    "github.com/rwcarlsen/goexif/exif"
     "github.com/quincy/photo_spool/util"
+    "github.com/rwcarlsen/goexif/exif"
 )
 
 type Spool struct {
     Destination string
-    dbPath string
-    ErrorPath string
-    db map[string][]string
+    dbPath      string
+    ErrorPath   string
+    db          map[string][]string
+    noop        bool
 }
 
 // New creates and returns a new *Spool.
-func New(dbPath, destination, errorPath string) (*Spool, error) {
+func New(dbPath, destination, errorPath string, noop bool) (*Spool, error) {
     sp := new(Spool)
+    sp.noop = noop
 
     if !util.Exists(destination) {
         if _, err := os.Create(destination); err != nil {
@@ -75,6 +77,10 @@ func (sp *Spool) readDatabase() error {
 
 // writeDatabase serializes the md5 database to json and writes it to disk.
 func (sp *Spool) writeDatabase() error {
+    if sp.noop {
+        log.Println("DRY RUN Skipping write database.")
+    }
+
     b, err := json.Marshal(sp.db)
     if err != nil {
         return err
@@ -97,7 +103,9 @@ func (sp *Spool) Spool(file string) error {
     if err != nil {
         log.Printf("Could not read the DateTimeOriginal tag. %v", err)
         log.Printf("Moving %s to %s.\n", file, sp.ErrorPath)
-        if mverr := util.MoveTo(sp.ErrorPath, file); mverr != nil {
+        if sp.noop {
+            log.Println("DRY RUN Skipping move file.")
+        } else if mverr := util.MoveTo(sp.ErrorPath, file); mverr != nil {
             log.Fatal(mverr)
         }
         return err
@@ -108,7 +116,11 @@ func (sp *Spool) Spool(file string) error {
         msg := "A db entry already exists for " + file + "."
         errorName := filepath.Join(sp.ErrorPath, strings.Join([]string{filepath.Base(file), "DUPLICATE"}, "."))
         log.Printf("Mv(%s, %s)\n", errorName, file)
-        util.Mv(errorName, file)
+        if sp.noop {
+            log.Println("DRY RUN Skipping move file.")
+        } else {
+            util.Mv(errorName, file)
+        }
         return errors.New(msg)
     }
 
@@ -117,7 +129,7 @@ func (sp *Spool) Spool(file string) error {
 
     // ensure the new path doesn't already exist
     for util.Exists(newPath) {
-        dateTime = dateTime.Add(1*time.Second)
+        dateTime = dateTime.Add(1 * time.Second)
         newPath = sp.getDestination(file, sp.Destination, dateTime)
     }
 
@@ -125,22 +137,28 @@ func (sp *Spool) Spool(file string) error {
     if util.Exists(newPath) {
         fields := strings.Split(filepath.Base(file), ".")
         errorName := filepath.Join(sp.ErrorPath, strings.Join([]string{fields[0], filepath.Base(newPath)}, "::"))
-        util.Mv(errorName, file)
+        if sp.noop {
+            log.Println("DRY RUN Skipping move file.")
+        } else {
+            util.Mv(errorName, file)
+        }
         msg := "A file with that named " + newPath + " already exists at the destination.  Moving to " + errorName
-        log.Println(msg)  // TODO This logging sucks.
+        log.Println(msg) // TODO This logging sucks.
         // TODO send an e-mail.
         return errors.New(msg)
     }
 
     // move the file to its new home
-    if err := util.Mv(newPath, file); err != nil {
+    if sp.noop {
+        log.Println("DRY RUN Skipping move file.")
+    } else if err := util.Mv(newPath, file); err != nil {
         log.Println(err)
         return err
     }
 
     // add an entry to the hashmap db
     if err := sp.insertDb(newPath, hash); err != nil {
-        return err  // TODO plain errors suck...
+        return err // TODO plain errors suck...
     }
 
     return nil
@@ -206,7 +224,7 @@ func getDateTime(fname string) (time.Time, error) {
         return t, err
     }
     log.Println("Setting DateTimeOriginal to ", date.StringVal(), " on ", fname)
-    t, err  := time.Parse("2006:01:02 15:04:05", date.StringVal())
+    t, err := time.Parse("2006:01:02 15:04:05", date.StringVal())
     if err != nil {
         return time.Now(), err
     }
@@ -219,7 +237,7 @@ getDestination builds a full path where the origPath should be copied to based
 on its DateTimeOriginal tag.
 */
 func (sp *Spool) getDestination(origPath, newBasePath string, t time.Time) string {
-    m   := int(t.Month())
+    m := int(t.Month())
     mon := strconv.Itoa(m)
 
     if m < 10 {
@@ -231,9 +249,7 @@ func (sp *Spool) getDestination(origPath, newBasePath string, t time.Time) strin
         suffix = "jpg"
     }
 
-    dir   := filepath.Join(newBasePath, strconv.Itoa(t.Year()), mon)
+    dir := filepath.Join(newBasePath, strconv.Itoa(t.Year()), mon)
     fname := t.Format("2006-01-02_15:04:05") + suffix
     return filepath.Join(dir, fname)
 }
-
-
