@@ -8,17 +8,22 @@ import (
     "path/filepath"
     "regexp"
 
+    "github.com/quincy/configo"
     "github.com/quincy/photo_spool/spooler"
     "github.com/quincy/photo_spool/util"
 )
 
 var db map[string][]string = make(map[string][]string, 100)
-var spoolPath string
 var currentUser *user.User
 var spool *spooler.Spool
+var spoolPath string
+var basePhotoPath string
+var errorPath string
+var md5DbPath string
+var noop bool
 
 /*
-init sets up required initial state.
+setup configuration options
 */
 func init() {
     var err error
@@ -31,10 +36,15 @@ func init() {
     //    basePhotoPath := filepath.Join(currentUser.HomeDir, "Pictures")    // TODO these should be configurable values.
     //    errorPath := filepath.Join(currentUser.HomeDir, "spool_error")     // TODO these should be configurable values.
     //    md5DbPath := filepath.Join(currentUser.HomeDir, ".photo-spool.db") // TODO these should be configurable values.
-    spoolPath = filepath.Join("/media/sf_C_DRIVE/Users/quincy/spool")            // TODO these should be configurable values.
-    basePhotoPath := filepath.Join("/media/sf_C_DRIVE/Users/quincy/Pictures")    // TODO these should be configurable values.
-    errorPath := filepath.Join("/media/sf_C_DRIVE/Users/quincy/spool_error")     // TODO these should be configurable values.
-    md5DbPath := filepath.Join("/media/sf_C_DRIVE/Users/quincy/.photo-spool.db") // TODO these should be configurable values.
+    configo.StringVar(&spoolPath, "spooldir", filepath.Join(currentUser.HomeDir, "spool"), "The directory to look in for new pictures to spool.")
+    configo.StringVar(&basePhotoPath, "photodir", filepath.Join(currentUser.HomeDir, "Pictures"), "The directory that new pictures will be copied to as they are spooled.")
+    configo.StringVar(&errorPath, "errordir", filepath.Join(currentUser.HomeDir, "spool_error"), "The directory to copy pictures to when an error occurs.")
+    configo.StringVar(&md5DbPath, "dbdir", filepath.Join(currentUser.HomeDir, ".photo-spool.db"), "The full path to the photo database file.")
+    configo.BoolFlagVar(&noop, "dryrun", false, "If set the program has no effect but prints what would have happened.")
+
+    if err = configo.Parse(); err != nil {
+        panic(err)
+    }
 
     if err := os.MkdirAll(errorPath, 0775); err != nil {
         log.Fatal(err)
@@ -48,7 +58,7 @@ func init() {
         log.Fatal(err)
     }
 
-    if spool, err = spooler.New(md5DbPath, basePhotoPath, errorPath); err != nil {
+    if spool, err = spooler.New(md5DbPath, basePhotoPath, errorPath, noop); err != nil {
         log.Fatalf("Could not create a new Spool. %v\n", err)
     }
 }
@@ -62,10 +72,12 @@ func visit(filePath string, f os.FileInfo, err error) error {
     log.Println("Visiting", filePath)
 
     if !f.IsDir() {
-        matched, err := regexp.MatchString("(?i:jpe?g$)", filePath)
+        pattern := "(?i:jpe?g$)"
+        matched, err := regexp.MatchString(pattern, filePath)
         if err != nil {
-            util.MoveTo(spool.ErrorPath, filePath)
+            log.Fatalf("Error compiling regular expression '%s'.  %v", pattern, err)
         }
+
         if matched {
             spoolError := spool.Spool(filePath)
             if spoolError != nil {
@@ -74,11 +86,20 @@ func visit(filePath string, f os.FileInfo, err error) error {
 
             parent := filepath.Dir(filePath)
             if util.DirIsEmpty(parent) {
-                // TODO Prune the parent
+                log.Printf("Pruning empty directory [%s].\n", parent)
+                if noop {
+                    log.Println("DRY RUN Skipping delete directory.")
+                } else {
+                    os.Remove(parent)
+                }
             }
         } else {
-            log.Println("Skipping non-JPEG file ", filePath)
-            util.MoveTo(spool.ErrorPath, filePath)
+            log.Printf("Found unhandled file type [%s].  Moving the file to %s.\n", filePath, spool.ErrorPath)
+            if noop {
+                log.Println("DRY RUN Skipping move file.")
+            } else {
+                util.MoveTo(spool.ErrorPath, filePath)
+            }
         }
     }
 

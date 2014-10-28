@@ -25,11 +25,13 @@ type Spool struct {
     dbPath      string
     ErrorPath   string
     db          map[string][]string
+    noop        bool
 }
 
 // New creates and returns a new *Spool.
-func New(dbPath, destination, errorPath string) (*Spool, error) {
+func New(dbPath, destination, errorPath string, noop bool) (*Spool, error) {
     sp := new(Spool)
+    sp.noop = noop
 
     if !util.Exists(destination) {
         if _, err := os.Create(destination); err != nil {
@@ -75,6 +77,10 @@ func (sp *Spool) readDatabase() error {
 
 // writeDatabase serializes the md5 database to json and writes it to disk.
 func (sp *Spool) writeDatabase() error {
+    if sp.noop {
+        log.Println("DRY RUN Skipping write database.")
+    }
+
     b, err := json.Marshal(sp.db)
     if err != nil {
         return err
@@ -97,7 +103,9 @@ func (sp *Spool) Spool(file string) error {
     if err != nil {
         log.Printf("Could not read the DateTimeOriginal tag. %v", err)
         log.Printf("Moving %s to %s.\n", file, sp.ErrorPath)
-        if mverr := util.MoveTo(sp.ErrorPath, file); mverr != nil {
+        if sp.noop {
+            log.Println("DRY RUN Skipping move file.")
+        } else if mverr := util.MoveTo(sp.ErrorPath, file); mverr != nil {
             log.Fatal(mverr)
         }
         return err
@@ -108,7 +116,11 @@ func (sp *Spool) Spool(file string) error {
         msg := "A db entry already exists for " + file + "."
         errorName := filepath.Join(sp.ErrorPath, strings.Join([]string{filepath.Base(file), "DUPLICATE"}, "."))
         log.Printf("Mv(%s, %s)\n", errorName, file)
-        util.Mv(errorName, file)
+        if sp.noop {
+            log.Println("DRY RUN Skipping move file.")
+        } else {
+            util.Mv(errorName, file)
+        }
         return errors.New(msg)
     }
 
@@ -125,7 +137,11 @@ func (sp *Spool) Spool(file string) error {
     if util.Exists(newPath) {
         fields := strings.Split(filepath.Base(file), ".")
         errorName := filepath.Join(sp.ErrorPath, strings.Join([]string{fields[0], filepath.Base(newPath)}, "::"))
-        util.Mv(errorName, file)
+        if sp.noop {
+            log.Println("DRY RUN Skipping move file.")
+        } else {
+            util.Mv(errorName, file)
+        }
         msg := "A file with that named " + newPath + " already exists at the destination.  Moving to " + errorName
         log.Println(msg) // TODO This logging sucks.
         // TODO send an e-mail.
@@ -133,7 +149,9 @@ func (sp *Spool) Spool(file string) error {
     }
 
     // move the file to its new home
-    if err := util.Mv(newPath, file); err != nil {
+    if sp.noop {
+        log.Println("DRY RUN Skipping move file.")
+    } else if err := util.Mv(newPath, file); err != nil {
         log.Println(err)
         return err
     }
@@ -232,6 +250,6 @@ func (sp *Spool) getDestination(origPath, newBasePath string, t time.Time) strin
     }
 
     dir := filepath.Join(newBasePath, strconv.Itoa(t.Year()), mon)
-    fname := t.Format("2006-01-02_150405") + suffix
+    fname := t.Format("2006-01-02_15:04:05") + suffix
     return filepath.Join(dir, fname)
 }
