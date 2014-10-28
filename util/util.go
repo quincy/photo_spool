@@ -1,6 +1,7 @@
 package util
 
 import (
+    "fmt"
     "io"
     "os"
     "path/filepath"
@@ -31,20 +32,24 @@ func Mv(dst, src string) error {
     // we need from the filesystem, so nothing can go wrong now.
     defer s.Close()
 
+    fmt.Println("Ensuring dirs exist.")
     os.MkdirAll(filepath.Dir(dst), 0755)
     d, err := os.Create(dst)
     if err != nil {
         return err
     }
+    fmt.Println("About to copy...")
     if _, err := io.Copy(d, s); err != nil {
         d.Close()
         return err
     }
+    fmt.Println("Done copying.")
     if err := d.Close(); err != nil {
         return err
     }
 
-    if err:= os.Remove(src); err != nil {
+    fmt.Println("Removing original.")
+    if err := os.Remove(src); err != nil {
         return err
     }
 
@@ -78,4 +83,3 @@ func DirIsEmpty(dir string) bool {
 
     panic(err)
 }
-
