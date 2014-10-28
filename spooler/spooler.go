@@ -12,19 +12,19 @@ import (
     "os"
     "path"
     "path/filepath"
-    "strings"
     "strconv"
+    "strings"
     "time"
 
-    "github.com/rwcarlsen/goexif/exif"
     "github.com/quincy/photo_spool/util"
+    "github.com/rwcarlsen/goexif/exif"
 )
 
 type Spool struct {
     Destination string
-    dbPath string
-    ErrorPath string
-    db map[string][]string
+    dbPath      string
+    ErrorPath   string
+    db          map[string][]string
 }
 
 // New creates and returns a new *Spool.
@@ -117,7 +117,7 @@ func (sp *Spool) Spool(file string) error {
 
     // ensure the new path doesn't already exist
     for util.Exists(newPath) {
-        dateTime = dateTime.Add(1*time.Second)
+        dateTime = dateTime.Add(1 * time.Second)
         newPath = sp.getDestination(file, sp.Destination, dateTime)
     }
 
@@ -127,7 +127,7 @@ func (sp *Spool) Spool(file string) error {
         errorName := filepath.Join(sp.ErrorPath, strings.Join([]string{fields[0], filepath.Base(newPath)}, "::"))
         util.Mv(errorName, file)
         msg := "A file with that named " + newPath + " already exists at the destination.  Moving to " + errorName
-        log.Println(msg)  // TODO This logging sucks.
+        log.Println(msg) // TODO This logging sucks.
         // TODO send an e-mail.
         return errors.New(msg)
     }
@@ -140,7 +140,7 @@ func (sp *Spool) Spool(file string) error {
 
     // add an entry to the hashmap db
     if err := sp.insertDb(newPath, hash); err != nil {
-        return err  // TODO plain errors suck...
+        return err // TODO plain errors suck...
     }
 
     return nil
@@ -206,7 +206,7 @@ func getDateTime(fname string) (time.Time, error) {
         return t, err
     }
     log.Println("Setting DateTimeOriginal to ", date.StringVal(), " on ", fname)
-    t, err  := time.Parse("2006:01:02 15:04:05", date.StringVal())
+    t, err := time.Parse("2006:01:02 15:04:05", date.StringVal())
     if err != nil {
         return time.Now(), err
     }
@@ -219,7 +219,7 @@ getDestination builds a full path where the origPath should be copied to based
 on its DateTimeOriginal tag.
 */
 func (sp *Spool) getDestination(origPath, newBasePath string, t time.Time) string {
-    m   := int(t.Month())
+    m := int(t.Month())
     mon := strconv.Itoa(m)
 
     if m < 10 {
@@ -231,9 +231,7 @@ func (sp *Spool) getDestination(origPath, newBasePath string, t time.Time) strin
         suffix = "jpg"
     }
 
-    dir   := filepath.Join(newBasePath, strconv.Itoa(t.Year()), mon)
-    fname := t.Format("2006-01-02_15:04:05") + suffix
+    dir := filepath.Join(newBasePath, strconv.Itoa(t.Year()), mon)
+    fname := t.Format("2006-01-02_150405") + suffix
     return filepath.Join(dir, fname)
 }
-
-
