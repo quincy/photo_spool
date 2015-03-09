@@ -250,6 +250,6 @@ func (sp *Spool) getDestination(origPath, newBasePath string, t time.Time) strin
     }
 
     dir := filepath.Join(newBasePath, strconv.Itoa(t.Year()), mon)
-    fname := t.Format("2006-01-02_15:04:05") + suffix
+    fname := t.Format("2006-01-02_150405") + suffix
     return filepath.Join(dir, fname)
 }
