@@ -23,3 +23,7 @@ _testmain.go
 
 # swap files
 .*swp
+
+# intellij project files
+.idea
+*.iml
