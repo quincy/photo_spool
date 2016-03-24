@@ -3,11 +3,9 @@ package spooler
 import (
 	"bufio"
 	"crypto/md5"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -16,110 +14,97 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quincy/photo_spool/util"
+	"github.com/quincy/goutil/file"
+	"github.com/quincy/photo_spool/db"
 	"github.com/rwcarlsen/goexif/exif"
 )
 
-type Spool struct {
+type Spooler struct {
 	Destination string
 	dbPath      string
 	ErrorPath   string
-	db          map[string][]string
+	database    db.Db
 	noop        bool
+	closed      bool
 }
 
 // New creates and returns a new *Spool.
-func New(dbPath, destination, errorPath string, noop bool) (*Spool, error) {
-	sp := new(Spool)
+func New(dbPath, destination, errorPath string, noop bool) (*Spooler, error) {
+	sp := new(Spooler)
 	sp.noop = noop
 
-	if !util.Exists(destination) {
+	if !file.Exists(destination) {
 		if _, err := os.Create(destination); err != nil {
 			return nil, err
 		}
 	}
 	sp.Destination = destination
 
-	if !util.Exists(errorPath) {
+	if !file.Exists(errorPath) {
 		if _, err := os.Create(errorPath); err != nil {
 			return nil, err
 		}
 	}
 	sp.ErrorPath = errorPath
 
-	sp.dbPath = dbPath
-	if err := sp.readDatabase(); err != nil {
-		return nil, err
+	if sp.noop {
+		sp.database = db.NewNoopDb()
+	} else {
+		database, err := db.NewMapFileDb(dbPath)
+		if err != nil {
+			return nil, err
+		}
+		sp.database = database
 	}
 
+	sp.closed = false
 	return sp, nil
 }
 
-// readDatabase deserializes the md5 json database from the given filePath.
-func (sp *Spool) readDatabase() error {
-	var db map[string][]string
-
-	if util.Exists(sp.dbPath) {
-		json_bytes, err := ioutil.ReadFile(sp.dbPath)
-
-		if err != nil {
-			return err
-		}
-
-		err = json.Unmarshal(json_bytes, &db)
-	} else {
-		db = make(map[string][]string)
+func (sp *Spooler) Close() error {
+	if sp.closed {
+		return fmt.Errorf("This Spooler is already closed.")
 	}
 
-	sp.db = db
-	return nil
-}
-
-// writeDatabase serializes the md5 database to json and writes it to disk.
-func (sp *Spool) writeDatabase() error {
-	if sp.noop {
-		log.Println("DRY RUN Skipping write database.")
-	}
-
-	b, err := json.Marshal(sp.db)
+	err := sp.database.Close()
 	if err != nil {
 		return err
 	}
 
-	err = ioutil.WriteFile(sp.dbPath, b, 0644)
-	return err
+	sp.closed = true
+	return nil
 }
 
-func (sp *Spool) Close() error {
-	return sp.writeDatabase()
-}
+func (sp *Spooler) Spool(filename string) error {
+	if sp.closed {
+		return fmt.Errorf("This Spooler is already closed.")
+	}
 
-func (sp *Spool) Spool(file string) error {
 	// calculate an md5 sum for the file
-	hash := getHash(file)
+	hash := getHash(filename)
 
 	// get the Time from the DateTimeOriginal exif tag
-	dateTime, err := getDateTime(file)
+	dateTime, err := getDateTime(filename)
 	if err != nil {
 		log.Printf("Could not read the DateTimeOriginal tag. %v", err)
-		log.Printf("Moving %s to %s.\n", file, sp.ErrorPath)
+		log.Printf("Moving %s to %s.\n", filename, sp.ErrorPath)
 		if sp.noop {
 			log.Println("DRY RUN Skipping move file.")
-		} else if mverr := util.MoveTo(sp.ErrorPath, file); mverr != nil {
+		} else if mverr := file.MoveTo(sp.ErrorPath, filename); mverr != nil {
 			log.Fatal(mverr)
 		}
 		return err
 	}
 
 	// check if the hash already exists in the db
-	if _, exists := sp.db[hash]; exists {
-		msg := "A db entry already exists for " + file + "."
-		errorName := filepath.Join(sp.ErrorPath, strings.Join([]string{filepath.Base(file), "DUPLICATE"}, "."))
-		log.Printf("Mv(%s, %s)\n", errorName, file)
+	if sp.database.ContainsKey(hash) {
+		msg := "A db entry already exists for " + filename + "."
+		errorName := filepath.Join(sp.ErrorPath, strings.Join([]string{filepath.Base(filename), "DUPLICATE"}, "."))
+		log.Printf("Mv(%s, %s)\n", errorName, filename)
 		if sp.noop {
 			log.Println("DRY RUN Skipping move file.")
 		} else {
-			err := util.Mv(errorName, file)
+			err := file.Mv(errorName, filename)
 			if err != nil {
 				return err
 			}
@@ -128,22 +113,22 @@ func (sp *Spool) Spool(file string) error {
 	}
 
 	// calculate the path to copy the file to, including a new file name
-	newPath := sp.getDestination(file, sp.Destination, dateTime)
+	newPath := sp.getDestination(filename, sp.Destination, dateTime)
 
 	// ensure the new path doesn't already exist
-	for util.Exists(newPath) {
+	for file.Exists(newPath) {
 		dateTime = dateTime.Add(1 * time.Second)
-		newPath = sp.getDestination(file, sp.Destination, dateTime)
+		newPath = sp.getDestination(filename, sp.Destination, dateTime)
 	}
 
-	log.Printf("Mv(%s, %s)\n", newPath, file)
-	if util.Exists(newPath) {
-		fields := strings.Split(filepath.Base(file), ".")
+	log.Printf("Mv(%s, %s)\n", newPath, filename)
+	if file.Exists(newPath) {
+		fields := strings.Split(filepath.Base(filename), ".")
 		errorName := filepath.Join(sp.ErrorPath, strings.Join([]string{fields[0], filepath.Base(newPath)}, "::"))
 		if sp.noop {
 			log.Println("DRY RUN Skipping move file.")
 		} else {
-			err := util.Mv(errorName, file)
+			err := file.Mv(errorName, filename)
 			if err != nil {
 				log.Println(err)
 				return err
@@ -158,25 +143,15 @@ func (sp *Spool) Spool(file string) error {
 	// move the file to its new home
 	if sp.noop {
 		log.Println("DRY RUN Skipping move file.")
-	} else if err := util.Mv(newPath, file); err != nil {
+	} else if err := file.Mv(newPath, filename); err != nil {
 		log.Println(err)
 		return err
 	}
 
 	// add an entry to the hashmap db
-	if err := sp.insertDb(newPath, hash); err != nil {
+	if err := sp.database.Insert(newPath, hash); err != nil {
 		return err // TODO plain errors suck...
 	}
-
-	return nil
-}
-
-func (sp *Spool) insertDb(file, hash string) error {
-	if _, exists := sp.db[hash]; !exists {
-		sp.db[hash] = make([]string, 0, 5)
-	}
-
-	sp.db[hash] = append(sp.db[hash], file)
 
 	return nil
 }
@@ -247,7 +222,7 @@ func getDateTime(fname string) (time.Time, error) {
 getDestination builds a full path where the origPath should be copied to based
 on its DateTimeOriginal tag.
 */
-func (sp *Spool) getDestination(origPath, newBasePath string, t time.Time) string {
+func (sp *Spooler) getDestination(origPath, newBasePath string, t time.Time) string {
 	m := int(t.Month())
 	mon := strconv.Itoa(m)
 

@@ -9,13 +9,13 @@ import (
 	"regexp"
 
 	"github.com/quincy/configo"
+	"github.com/quincy/goutil/file"
 	"github.com/quincy/photo_spool/spooler"
-	"github.com/quincy/photo_spool/util"
 )
 
 var db map[string][]string = make(map[string][]string, 100)
 var currentUser *user.User
-var spool *spooler.Spool
+var spool *spooler.Spooler
 var spoolPath string
 var basePhotoPath string
 var errorPath string
@@ -80,7 +80,7 @@ func visit(filePath string, f os.FileInfo, err error) error {
 			}
 
 			parent := filepath.Dir(filePath)
-			if util.DirIsEmpty(parent) {
+			if file.DirIsEmpty(parent) {
 				log.Printf("Pruning empty directory [%s].\n", parent)
 				if noop {
 					log.Println("DRY RUN Skipping delete directory.")
@@ -93,7 +93,7 @@ func visit(filePath string, f os.FileInfo, err error) error {
 			if noop {
 				log.Println("DRY RUN Skipping move file.")
 			} else {
-				util.MoveTo(spool.ErrorPath, filePath)
+				file.MoveTo(spool.ErrorPath, filePath)
 			}
 		}
 	}
