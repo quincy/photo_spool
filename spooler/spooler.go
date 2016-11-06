@@ -28,7 +28,7 @@ type Spooler struct {
 	closed      bool
 }
 
-// New creates and returns a new *Spool.
+// New creates and returns a new *Spooler.
 func New(dbPath, destination, errorPath string, noop bool) (*Spooler, error) {
 	sp := new(Spooler)
 	sp.noop = noop
@@ -61,6 +61,7 @@ func New(dbPath, destination, errorPath string, noop bool) (*Spooler, error) {
 	return sp, nil
 }
 
+// Close closes the spooler, in turn closing the database.
 func (sp *Spooler) Close() error {
 	if sp.closed {
 		return fmt.Errorf("This Spooler is already closed.")
@@ -75,6 +76,7 @@ func (sp *Spooler) Close() error {
 	return nil
 }
 
+// Spool copies the photo given by filename to the correct directory with the correct name.
 func (sp *Spooler) Spool(filename string) error {
 	if sp.closed {
 		return fmt.Errorf("This Spooler is already closed.")
@@ -156,12 +158,9 @@ func (sp *Spooler) Spool(filename string) error {
 	return nil
 }
 
-/*
-getHash calculates the md5 sum for a given filePath and returns the hex string
-representation.
-
-TODO Move to its own package?
-*/
+// getHash calculates the md5 sum for a given filePath and returns the hex string
+// representation.
+// TODO move to its own package?
 func getHash(filePath string) string {
 	log.Println("Entering getHash(", filePath, ")")
 	h := md5.New()
@@ -185,10 +184,9 @@ func getHash(filePath string) string {
 	return sum
 }
 
-/*
-getDateTime reads the exif data from fname and returns a string representation
-of the DateTimeOriginal tag.
-*/
+// getDateTime reads the exif data from fname and returns a string representation
+// of the DateTimeOriginal tag.
+// TODO move to its own package?
 func getDateTime(fname string) (time.Time, error) {
 	f, err := os.Open(fname)
 	if err != nil {
@@ -218,10 +216,9 @@ func getDateTime(fname string) (time.Time, error) {
 	return t, nil
 }
 
-/*
-getDestination builds a full path where the origPath should be copied to based
-on its DateTimeOriginal tag.
-*/
+// getDestination builds a full path where the origPath should be copied to based on the newBasePath and the given time t.
+// If t is "2006-01-02_150405" then this function will append "/2006/01/2006-01-02_150405" onto newBasePath and return
+// the resulting path.
 func (sp *Spooler) getDestination(origPath, newBasePath string, t time.Time) string {
 	m := int(t.Month())
 	mon := strconv.Itoa(m)

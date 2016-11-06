@@ -27,7 +27,7 @@ func NewMapFileDb(path string) (Db, error) {
 	return d, nil
 }
 
-// readDatabase deserializes the md5 json database from the given filePath.
+// load deserializes the md5 json database from the given filePath.
 func load(path string) (map[string][]string, error) {
 	var db map[string][]string
 
@@ -107,6 +107,7 @@ func (d *MapFileDb) Insert(file, hash string) error {
 	return nil
 }
 
+// ContainsKey returns true if the database contains the given key, and false otherwise.
 func (d *MapFileDb) ContainsKey(key string) bool {
 	if _, ok := d.store[key]; ok {
 		return true

@@ -13,7 +13,7 @@ import (
 	"github.com/quincy/photo_spool/spooler"
 )
 
-var db map[string][]string = make(map[string][]string, 100)
+var db map[string][]string = make(map[string][]string, 100) // FIXME unused variable
 var currentUser *user.User
 var spool *spooler.Spooler
 var spoolPath string
@@ -22,9 +22,7 @@ var errorPath string
 var md5DbPath string
 var noop bool
 
-/*
-setup configuration options
-*/
+// setup configuration options
 func init() {
 	var err error
 	if currentUser, err = user.Current(); err != nil {
@@ -58,11 +56,8 @@ func init() {
 	}
 }
 
-/*
-visit is called for each file found in a directory walk.  If the file is a
-directory then it is ignored.  Otherwise the path is sent to the items channel
-to be processed by the processFiles goroutine.
-*/
+// visit is called for each file found in a directory walk.  If the file is a
+// directory then it is pruned if empty.  Otherwise the file is spooled.
 func visit(filePath string, f os.FileInfo, err error) error {
 	log.Println("Visiting", filePath)
 
