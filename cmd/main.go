@@ -61,34 +61,45 @@ func init() {
 func visit(filePath string, f os.FileInfo, err error) error {
 	log.Println("Visiting", filePath)
 
-	if !f.IsDir() {
-		pattern := "(?i:jpe?g$)"
-		matched, err := regexp.MatchString(pattern, filePath)
-		if err != nil {
-			log.Fatalf("Error compiling regular expression '%s'.  %v", pattern, err)
-		}
+	// If we visit a directory check to see if it's empty and prune if so.
+	if f.IsDir() {
+		return pruneDir(filePath)
+	}
 
-		if matched {
-			spoolError := spool.Spool(filePath)
-			if spoolError != nil {
-				log.Println(spoolError)
-			}
+	pattern := "(?i:jpe?g$)"
+	matched, err := regexp.MatchString(pattern, filePath)
+	if err != nil {
+		log.Fatalf("Error compiling regular expression '%s'.  %v", pattern, err)
+	}
 
-			parent := filepath.Dir(filePath)
-			if file.DirIsEmpty(parent) {
-				log.Printf("Pruning empty directory [%s].\n", parent)
-				if noop {
-					log.Println("DRY RUN Skipping delete directory.")
-				} else {
-					os.Remove(parent)
-				}
-			}
+	if !matched {
+		log.Printf("Found unhandled file type [%s].  Moving the file to %s.\n", filePath, spool.ErrorPath)
+		if noop {
+			log.Println("DRY RUN Skipping move file.")
 		} else {
-			log.Printf("Found unhandled file type [%s].  Moving the file to %s.\n", filePath, spool.ErrorPath)
-			if noop {
-				log.Println("DRY RUN Skipping move file.")
-			} else {
-				file.MoveTo(spool.ErrorPath, filePath)
+			file.MoveTo(spool.ErrorPath, filePath)
+		}
+		return nil
+	}
+
+	spoolError := spool.Spool(filePath)
+	if spoolError != nil {
+		log.Println(spoolError)
+	}
+
+	return pruneDir(filepath.Dir(filePath))
+}
+
+// prune removes the directory d if it is empty.  Otherwise prune does nothing.
+func pruneDir(d string) error {
+	if file.DirIsEmpty(d) && d != spoolPath {
+		log.Printf("Pruning empty directory [%s].\n", d)
+		if noop {
+			log.Println("DRY RUN Skipping delete directory.")
+		} else {
+			err := os.Remove(d)
+			if err != nil {
+				return err
 			}
 		}
 	}
