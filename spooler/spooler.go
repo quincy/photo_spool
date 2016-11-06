@@ -28,6 +28,11 @@ type Spooler struct {
 	closed      bool
 }
 
+var JPEGPattern string = `\.jpe?g$`
+var PNGPattern string = `\.png$`
+
+var ImagePattern string = `(?i:` + strings.Join([]string{JPEGPattern, PNGPattern}, "|") + `$)`
+
 // New creates and returns a new *Spooler.
 func New(dbPath, destination, errorPath string, noop bool) (*Spooler, error) {
 	sp := new(Spooler)

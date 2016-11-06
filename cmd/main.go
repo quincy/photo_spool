@@ -66,10 +66,9 @@ func visit(filePath string, f os.FileInfo, err error) error {
 		return pruneDir(filePath)
 	}
 
-	pattern := "(?i:jpe?g$)"
-	matched, err := regexp.MatchString(pattern, filePath)
+	matched, err := regexp.MatchString(spooler.ImagePattern, filePath)
 	if err != nil {
-		log.Fatalf("Error compiling regular expression '%s'.  %v", pattern, err)
+		log.Fatalf("Error compiling regular expression '%s'.  %v", spooler.ImagePattern, err)
 	}
 
 	if !matched {
