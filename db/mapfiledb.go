@@ -3,8 +3,10 @@ package db
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/quincy/goutil/file"
 	"io/ioutil"
+
+	"github.com/pkg/errors"
+	"github.com/quincy/goutil/file"
 )
 
 // MapFileDb is an implementation of Db which uses a file with a serialized map to store the data.
@@ -18,7 +20,7 @@ type MapFileDb struct {
 func NewMapFileDb(path string) (Db, error) {
 	m, err := load(path)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to load db from file "+path)
 	}
 	d := &MapFileDb{
 		FilePath: path,
@@ -34,12 +36,12 @@ func load(path string) (map[string][]string, error) {
 	if file.Exists(path) {
 		json_bytes, err := ioutil.ReadFile(path)
 		if err != nil {
-			return db, err
+			return db, errors.Wrap(err, "could not read file "+path)
 		}
 
 		err = json.Unmarshal(json_bytes, &db)
 		if err != nil {
-			return db, err
+			return db, errors.Wrap(err, "failed to unmarhsal json ["+string(json_bytes)+"]")
 		}
 	} else {
 		db = make(map[string][]string)

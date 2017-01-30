@@ -2,20 +2,16 @@ package main
 
 import (
 	"fmt"
+	"github.com/quincy/configo"
+	"github.com/quincy/photo_spool/spooler"
 	"log"
 	"os"
 	"os/user"
 	"path/filepath"
-	"regexp"
-
-	"github.com/quincy/configo"
-	"github.com/quincy/goutil/file"
-	"github.com/quincy/photo_spool/spooler"
 )
 
 var db map[string][]string = make(map[string][]string, 100) // FIXME unused variable
 var currentUser *user.User
-var spool *spooler.Spooler
 var spoolPath string
 var basePhotoPath string
 var errorPath string
@@ -50,65 +46,16 @@ func init() {
 	if err := os.MkdirAll(spoolPath, 0775); err != nil {
 		log.Fatal(err)
 	}
-
-	if spool, err = spooler.New(md5DbPath, basePhotoPath, errorPath, noop); err != nil {
-		log.Fatalf("Could not create a new Spool. %v\n", err)
-	}
-}
-
-// visit is called for each file found in a directory walk.  If the file is a
-// directory then it is pruned if empty.  Otherwise the file is spooled.
-func visit(filePath string, f os.FileInfo, err error) error {
-	log.Println("Visiting", filePath)
-
-	// If we visit a directory check to see if it's empty and prune if so.
-	if f.IsDir() {
-		return pruneDir(filePath)
-	}
-
-	matched, err := regexp.MatchString(spooler.ImagePattern, filePath)
-	if err != nil {
-		log.Fatalf("Error compiling regular expression '%s'.  %v", spooler.ImagePattern, err)
-	}
-
-	if !matched {
-		log.Printf("Found unhandled file type [%s].  Moving the file to %s.\n", filePath, spool.ErrorPath)
-		if noop {
-			log.Println("DRY RUN Skipping move file.")
-		} else {
-			file.MoveTo(spool.ErrorPath, filePath)
-		}
-		return nil
-	}
-
-	spoolError := spool.Spool(filePath)
-	if spoolError != nil {
-		log.Println(spoolError)
-	}
-
-	return pruneDir(filepath.Dir(filePath))
-}
-
-// prune removes the directory d if it is empty.  Otherwise prune does nothing.
-func pruneDir(d string) error {
-	if file.DirIsEmpty(d) && d != spoolPath {
-		log.Printf("Pruning empty directory [%s].\n", d)
-		if noop {
-			log.Println("DRY RUN Skipping delete directory.")
-		} else {
-			err := os.Remove(d)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
 }
 
 func main() {
+	spool, err := spooler.New(md5DbPath, basePhotoPath, errorPath, noop)
+	if err != nil {
+		log.Fatalf("Could not create a new Spool. %v\n", err)
+	}
+
 	// Start the file walk.
-	err := filepath.Walk(spoolPath, visit)
+	err = filepath.Walk(spoolPath, spooler.GetWalkFunc(spool, spoolPath, noop))
 
 	if err != nil {
 		fmt.Println("There was an error: ", err)

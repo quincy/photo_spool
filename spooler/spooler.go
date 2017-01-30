@@ -3,7 +3,6 @@ package spooler
 import (
 	"bufio"
 	"crypto/md5"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -14,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/quincy/goutil/file"
 	"github.com/quincy/photo_spool/db"
 	"github.com/rwcarlsen/goexif/exif"
@@ -40,14 +40,14 @@ func New(dbPath, destination, errorPath string, noop bool) (*Spooler, error) {
 
 	if !file.Exists(destination) {
 		if _, err := os.Create(destination); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "could not create file "+destination)
 		}
 	}
 	sp.Destination = destination
 
 	if !file.Exists(errorPath) {
 		if _, err := os.Create(errorPath); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "could not create file "+errorPath)
 		}
 	}
 	sp.ErrorPath = errorPath
@@ -57,7 +57,7 @@ func New(dbPath, destination, errorPath string, noop bool) (*Spooler, error) {
 	} else {
 		database, err := db.NewMapFileDb(dbPath)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "could not create a new MapFileDb at "+dbPath)
 		}
 		sp.database = database
 	}
@@ -74,7 +74,7 @@ func (sp *Spooler) Close() error {
 
 	err := sp.database.Close()
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to close database "+sp.dbPath)
 	}
 
 	sp.closed = true
@@ -88,7 +88,10 @@ func (sp *Spooler) Spool(filename string) error {
 	}
 
 	// calculate an md5 sum for the file
-	hash := getHash(filename)
+	hash, err := getHash(filename)
+	if err != nil {
+		return errors.Wrap(err, "error calculating hash for "+filename)
+	}
 
 	// get the Time from the DateTimeOriginal exif tag
 	dateTime, err := getDateTime(filename)
@@ -100,7 +103,7 @@ func (sp *Spooler) Spool(filename string) error {
 		} else if mverr := file.MoveTo(sp.ErrorPath, filename); mverr != nil {
 			log.Fatal(mverr)
 		}
-		return err
+		return errors.Wrap(err, "failed to lookup DateTimeOriginal tag from "+filename)
 	}
 
 	// check if the hash already exists in the db
@@ -113,7 +116,7 @@ func (sp *Spooler) Spool(filename string) error {
 		} else {
 			err := file.Mv(errorName, filename)
 			if err != nil {
-				return err
+				return errors.Wrap(err, "error moving "+filename+" to "+errorName)
 			}
 		}
 		return errors.New(msg)
@@ -137,12 +140,10 @@ func (sp *Spooler) Spool(filename string) error {
 		} else {
 			err := file.Mv(errorName, filename)
 			if err != nil {
-				log.Println(err)
-				return err
+				return errors.Wrap(err, "error moving "+filename+" to "+errorName)
 			}
 		}
 		msg := "A file with that named " + newPath + " already exists at the destination.  Moving to " + errorName
-		log.Println(msg) // TODO This logging sucks.
 		// TODO send an e-mail.
 		return errors.New(msg)
 	}
@@ -151,13 +152,12 @@ func (sp *Spooler) Spool(filename string) error {
 	if sp.noop {
 		log.Println("DRY RUN Skipping move file.")
 	} else if err := file.Mv(newPath, filename); err != nil {
-		log.Println(err)
-		return err
+		return errors.Wrap(err, "error moving "+filename+" to "+newPath)
 	}
 
 	// add an entry to the hashmap db
 	if err := sp.database.Insert(newPath, hash); err != nil {
-		return err // TODO plain errors suck...
+		return errors.Wrap(err, "could not insert "+newPath+" with hash "+hash+" into database.")
 	}
 
 	return nil
@@ -166,13 +166,13 @@ func (sp *Spooler) Spool(filename string) error {
 // getHash calculates the md5 sum for a given filePath and returns the hex string
 // representation.
 // TODO move to its own package?
-func getHash(filePath string) string {
+func getHash(filePath string) (string, error) {
 	log.Println("Entering getHash(", filePath, ")")
 	h := md5.New()
 
 	inputFile, inputError := os.Open(filePath)
 	if inputError != nil {
-		log.Printf("An error occurred while opening the input file [%s].\n", filePath)
+		return "", errors.Wrap(inputError, "could not open input file "+filePath)
 	}
 	defer inputFile.Close()
 
@@ -186,7 +186,7 @@ func getHash(filePath string) string {
 	sum := fmt.Sprintf("%x", h.Sum(nil))
 
 	log.Println("Returning ", sum, " from getHash(", filePath, ")")
-	return sum
+	return sum, nil
 }
 
 // getDateTime reads the exif data from fname and returns a string representation
@@ -195,18 +195,18 @@ func getHash(filePath string) string {
 func getDateTime(fname string) (time.Time, error) {
 	f, err := os.Open(fname)
 	if err != nil {
-		return time.Now(), err
+		return time.Now(), errors.Wrap(err, "could not open file "+fname)
 	}
 	defer f.Close()
 
 	x, err := exif.Decode(f)
 	if err != nil {
-		return time.Now(), err
+		return time.Now(), errors.Wrap(err, "cound not decode exif data in file "+fname)
 	}
 
 	date, err := x.Get(exif.DateTimeOriginal)
 	if err != nil {
-		return time.Now(), err
+		return time.Now(), errors.Wrap(err, "could not extract exif tag DateTimeOriginal from "+fname)
 	}
 	dateStr, err := date.StringVal()
 	if err != nil {
@@ -215,7 +215,7 @@ func getDateTime(fname string) (time.Time, error) {
 	log.Println("Setting DateTimeOriginal to ", dateStr, " on ", fname)
 	t, err := time.Parse("2006:01:02 15:04:05", dateStr)
 	if err != nil {
-		return time.Now(), err
+		return time.Now(), errors.Wrap(err, "could not parse DateTimeOriginal value "+dateStr)
 	}
 
 	return t, nil
